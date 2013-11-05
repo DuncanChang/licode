@@ -103,9 +103,7 @@ namespace erizo {
       free(sendVideoBuffer_);
     if(decodedBuffer_!=NULL)
       free(decodedBuffer_);
-    if (op_!=NULL){
-      delete op_;
-    }
+    delete op_;
     ELOG_DEBUG("ExternalInput closed");
   }
 

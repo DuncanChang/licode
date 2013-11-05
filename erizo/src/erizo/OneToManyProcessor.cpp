@@ -20,10 +20,8 @@ namespace erizo {
 
   OneToManyProcessor::~OneToManyProcessor() {
     this->closeAll();
-    if (sendVideoBuffer_)
-      delete sendVideoBuffer_;
-    if (sendAudioBuffer_)
-      delete sendAudioBuffer_;
+    delete sendVideoBuffer_;
+    delete sendAudioBuffer_;
   }
 
   int OneToManyProcessor::deliverAudioData(char* buf, int len) {

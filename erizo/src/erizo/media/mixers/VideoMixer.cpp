@@ -42,14 +42,9 @@ namespace erizo {
     }
 
   VideoMixer::~VideoMixer() {
-
-    if (sendVideoBuffer_)
-      delete sendVideoBuffer_;
-    if (sendAudioBuffer_)
-      delete sendAudioBuffer_;
-    if (sink_) {
-      delete sink_;
-    }
+    delete sendVideoBuffer_;
+    delete sendAudioBuffer_;
+    delete sink_;
   }
 
   int VideoMixer::deliverAudioData(char* buf, int len) {

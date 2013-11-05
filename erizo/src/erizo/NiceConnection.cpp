@@ -78,10 +78,8 @@ NiceConnection::~NiceConnection() {
   	if (loop_ != NULL) {
   		g_main_loop_unref (loop_);
   	}
-	if (localCandidates!=NULL)
-		delete localCandidates;
-	if (transportName!=NULL)
-		delete transportName;
+	delete localCandidates;
+	delete transportName;
 }
 
 void NiceConnection::join() {

@@ -56,13 +56,9 @@ OneToManyTranscoder::OneToManyTranscoder() {
 
 OneToManyTranscoder::~OneToManyTranscoder() {
 	this->closeAll();
-	if (sendVideoBuffer_)
-		delete sendVideoBuffer_;
-	if (sendAudioBuffer_)
-		delete sendAudioBuffer_;
-	if (sink_) {
-		delete sink_;
-	}
+	delete sendVideoBuffer_;
+	delete sendAudioBuffer_;
+	delete sink_;
 }
 
 int OneToManyTranscoder::deliverAudioData(char* buf, int len) {
