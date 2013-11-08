@@ -47,43 +47,23 @@ namespace erizo {
     stunPort_ = stunPort;
     minPort_ = minPort;
     maxPort_ = maxPort;
-
-    ELOG_DEBUG("WebRtcConnection constructor end");
-
   }
 
   WebRtcConnection::~WebRtcConnection() {
-
-    this->close();
+    ELOG_DEBUG("WebRtcConnection Destructor");
+    sending_ = false;
+    delete videoTransport_;
+    videoTransport_=NULL;
+    delete audioTransport_;
+    audioTransport_= NULL;
+    send_Thread_.join();
     free(deliverMediaBuffer_);
   }
 
   bool WebRtcConnection::init() {
     return true;
   }
-
-  void WebRtcConnection::close() {
-
-    if (videoTransport_ != NULL) {
-      videoTransport_->close();
-    }
-    if (audioTransport_ != NULL) {
-      audioTransport_->close();
-    }
-    if (sending_ != false) {
-      sending_ = false;
-      send_Thread_.join();
-    }
-  }
-
-  void WebRtcConnection::closeSink(){
-    this->close();
-  }
-
-  void WebRtcConnection::closeSource(){
-    this->close();
-  }
-
+  
   bool WebRtcConnection::setRemoteSdp(const std::string &sdp) {
     ELOG_DEBUG("Set Remote SDP %s", sdp.c_str());
     remoteSdp_.initWithSdp(sdp);
@@ -353,8 +333,20 @@ namespace erizo {
 
   void WebRtcConnection::updateState(TransportState state, Transport * transport) {
     boost::mutex::scoped_lock lock(updateStateMutex_);
-    WebRTCState temp = INITIAL;
+    WebRTCState temp = globalState_;
+    ELOG_DEBUG("Update Transport State %d", state);
     if (audioTransport_ == NULL && videoTransport_ == NULL) {
+      return;
+    }
+
+    if (state == TRANSPORT_FAILED) {
+      temp = FAILED;
+      ELOG_INFO("WebRtcConnection failed.");
+    }
+
+    
+    if (globalState_ == FAILED) {
+      // if current state is failed we don't use
       return;
     }
 
@@ -373,12 +365,7 @@ namespace erizo {
     if (state == TRANSPORT_READY &&
         (!remoteSdp_.hasAudio || (audioTransport_ != NULL && audioTransport_->getTransportState() == TRANSPORT_READY)) &&
         (!remoteSdp_.hasVideo || (videoTransport_ != NULL && videoTransport_->getTransportState() == TRANSPORT_READY))) {
-      if ((!remoteSdp_.hasAudio || this->getAudioSourceSSRC() != 0) &&
-          (!remoteSdp_.hasVideo || this->getVideoSourceSSRC() != 0)) {
         temp = READY;
-      }
-
-
     }
 
     if (transport != NULL && transport == videoTransport_ && bundle_) {
@@ -394,7 +381,14 @@ namespace erizo {
     if (temp == READY && globalState_ != temp) {
       ELOG_INFO("Ready to send and receive media");
     }
-
+    if (audioTransport_ != NULL && videoTransport_ != NULL) {
+      ELOG_INFO("Update Transport State end, %d - %d, %d - %d, %d - %d, %d - %d", 
+        audioTransport_->getTransportState(), 
+        videoTransport_->getTransportState(), 
+        this->getAudioSourceSSRC(),
+        this->getVideoSourceSSRC(),
+        temp, globalState_);
+    }
     if (temp < 0) {
       return;
     }
@@ -452,23 +446,25 @@ namespace erizo {
 
   void WebRtcConnection::sendLoop() {
 
-    while (sending_ == true) {
-      receiveVideoMutex_.lock();
-      if (sendQueue_.size() > 0) {
-        if (sendQueue_.front().type == AUDIO_PACKET && audioTransport_!=NULL) {
-          audioTransport_->writeOnNice(sendQueue_.front().comp, sendQueue_.front().data,
-              sendQueue_.front().length);
+      while (sending_ == true) {
+        //    while (!boost::this_thread::interruption_requested()){
+        receiveVideoMutex_.lock();
+        if (sendQueue_.size() > 0) {
+          if (sendQueue_.front().type == AUDIO_PACKET) {
+            audioTransport_->writeOnNice(sendQueue_.front().comp, sendQueue_.front().data,
+                sendQueue_.front().length);
+          } else {
+            videoTransport_->writeOnNice(sendQueue_.front().comp, sendQueue_.front().data,
+                sendQueue_.front().length);
+          }
+          sendQueue_.pop();
+          receiveVideoMutex_.unlock();
         } else {
-          videoTransport_->writeOnNice(sendQueue_.front().comp, sendQueue_.front().data,
-              sendQueue_.front().length);
+          receiveVideoMutex_.unlock();
+          usleep(1000);
         }
-        sendQueue_.pop();
-        receiveVideoMutex_.unlock();
-      } else {
-        receiveVideoMutex_.unlock();
-        usleep(1000);
       }
+
     }
-  }
 }
 /* namespace erizo */
