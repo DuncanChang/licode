@@ -127,7 +127,7 @@ Erizo.Room = function (spec) {
 
                     myStream.pc.processSignalingMessage(answer);
                 });
-            }, stunServerUrl: that.stunServerUrl, turnServer: that.turnServer});
+            }, audio: myStream.hasAudio(), video: myStream.hasVideo(), stunServerUrl: that.stunServerUrl, turnServer: that.turnServer});
 
             myStream.pc.addStream(myStream.stream);
 
@@ -136,7 +136,7 @@ Erizo.Room = function (spec) {
         that.socket.on('onPublishP2P', function (arg, callback) {
             var myStream = that.remoteStreams[arg.streamId];
 
-            myStream.pc = Erizo.Connection({callback: function (offer) {}, stunServerUrl: that.stunServerUrl, turnServer: that.turnServer});
+            myStream.pc = Erizo.Connection({callback: function (offer) {}, stunServerUrl: that.stunServerUrl, turnServer: that.turnServer, maxAudioBW: spec.maxAudioBW, maxVideoBW: spec.maxVideoBW});
 
             myStream.pc.onsignalingmessage = function (answer) {
                 myStream.pc.onsignalingmessage = function () {};
@@ -230,6 +230,8 @@ Erizo.Room = function (spec) {
             that.stunServerUrl = response.stunServerUrl;
             that.turnServer = response.turnServer;
             that.state = CONNECTED;
+            spec.defaultVideoBW = response.defaultVideoBW;
+            spec.maxVideoBW = response.maxVideoBW;
 
             // 2- Retrieve list of streams
             for (index in streams) {
@@ -265,6 +267,12 @@ Erizo.Room = function (spec) {
     that.publish = function (stream, options, callback, callbackError) {
         options = options || {};
 
+        var maxVideoBW;
+        options.maxVideoBW = options.maxVideoBW || spec.defaultVideoBW;
+        if (options.maxVideoBW > spec.maxVideoBW) {
+            options.maxVideoBW = spec.maxVideoBW;
+        }
+
         // 1- If the stream is not local we do nothing.
         if (stream.local && that.localStreams[stream.getID()] === undefined) {
 
@@ -295,6 +303,9 @@ Erizo.Room = function (spec) {
                     });
 
                 } else if (that.p2p) {
+                    // We save them now to be used when actually publishing in P2P mode.
+                    spec.maxAudioBW = options.maxAudioBW;
+                    spec.maxVideoBW = options.maxVideoBW;
                     sendSDPSocket('publish', {state: 'p2p', data: stream.hasData(), audio: stream.hasAudio(), video: stream.hasVideo(), screen: stream.hasScreen(), attributes: stream.getAttributes()}, undefined, function (answer, id) {
                         if (answer === 'error') {
                             if (callbackError)
@@ -314,10 +325,11 @@ Erizo.Room = function (spec) {
                     });
 
                 } else {
+
                     stream.pc = Erizo.Connection({callback: function (offer) {
                         sendSDPSocket('publish', {state: 'offer', data: stream.hasData(), audio: stream.hasAudio(), video: stream.hasVideo(), attributes: stream.getAttributes()}, offer, function (answer, id) {
                             if (answer === 'error') {
-				if (callbackError)
+                                if (callbackError)
                                     callbackError(answer);
                                 return;
                             }
@@ -413,9 +425,15 @@ Erizo.Room = function (spec) {
                                     callbackError(answer);
                                 return;
                             }
+                            // For compatibility with only audio in Firefox
+                            if (answer.match(/a=ssrc:55543/)) {
+                                answer = answer.replace(/a=sendrecv\\r\\na=mid:video/, 'a=recvonly\\r\\na=mid:video');
+                                answer = answer.split('a=ssrc:55543')[0] + '"}';
+                            }
+                            
                             stream.pc.processSignalingMessage(answer);
                         });
-                    }, stunServerUrl: that.stunServerUrl, turnServer: that.turnServer});
+                    }, nop2p: true, audio: stream.hasAudio(), video: stream.hasVideo(), videostunServerUrl: that.stunServerUrl, turnServer: that.turnServer});
 
                     stream.pc.onaddstream = function (evt) {
                         // Draw on html

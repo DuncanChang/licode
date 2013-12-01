@@ -58,8 +58,8 @@ namespace erizo {
     agent_ = NULL;
     loop_ = NULL;
     listener_ = NULL;
-    localCandidates = new std::vector<CandidateInfo>();
-    transportName = new std::string(transport_name);
+    localCandidates.reset(new std::vector<CandidateInfo>());
+    transportName.reset(new std::string(transport_name));
     for (unsigned int i = 1; i<=iceComponents; i++) {
       comp_state_list[i] = NICE_INITIAL;
     }
@@ -85,8 +85,6 @@ namespace erizo {
       g_main_loop_unref (loop_);
       loop_=NULL;
     }
-    delete localCandidates;
-    delete transportName;
   }
 
   void NiceConnection::start() {
@@ -95,7 +93,7 @@ namespace erizo {
   }
 
   int NiceConnection::sendData(unsigned int compId, const void* buf, int len) {
-
+    boost::mutex::scoped_lock lock(writeMutex_);
     int val = -1;
     if (iceState == NICE_READY) {
       val = nice_agent_send(agent_, 1, compId, len, reinterpret_cast<const gchar*>(buf));
@@ -175,7 +173,7 @@ namespace erizo {
   bool NiceConnection::setRemoteCandidates(
       std::vector<CandidateInfo> &candidates) {
 
-    ELOG_DEBUG("Setting remote candidates %d", candidates.size());
+    ELOG_DEBUG("Setting remote candidates %lu", candidates.size());
 
 
     for (unsigned int compId = 1; compId <= iceComponents_; compId++) {
@@ -186,7 +184,6 @@ namespace erizo {
         NiceCandidateType nice_cand_type;
         CandidateInfo cinfo = candidates[it];
         if (cinfo.mediaType != this->mediaType
-            || this->transportName->compare(cinfo.transProtocol)
             || cinfo.componentId != compId)
           continue;
 
@@ -314,7 +311,7 @@ namespace erizo {
             break;
         }
         cand_info.netProtocol = "udp";
-        cand_info.transProtocol = std::string(*transportName);
+        cand_info.transProtocol = std::string(*transportName.get());
 
         cand_info.username = std::string(ufrag);
 
@@ -336,7 +333,7 @@ namespace erizo {
       lcands = nice_agent_get_local_candidates(agent_, stream_id,
           currentCompId++);
     }
-    ELOG_INFO("candidate_gathering done with %d candidates", localCandidates->size());
+    ELOG_INFO("candidate_gathering done with %lu candidates", localCandidates->size());
 
     if (localCandidates->size()==0){
       ELOG_WARN("No local candidates found, check your network connection");
@@ -354,7 +351,7 @@ namespace erizo {
   }
 
   void NiceConnection::updateComponentState(unsigned int compId, IceState state) {
-    ELOG_DEBUG("NICE Component State Changed %u - %u", compId, state);
+    ELOG_DEBUG("%s - NICE Component State Changed %u - %u", transportName->c_str(), compId, state);
     comp_state_list[compId] = state;
     if (state == NICE_READY) {
       for (unsigned int i = 1; i<=iceComponents_; i++) {
@@ -367,7 +364,7 @@ namespace erizo {
   }
 
   void NiceConnection::updateIceState(IceState state) {
-    ELOG_DEBUG("NICE State Changed %u", state);
+    ELOG_DEBUG("%s - NICE State Changed %u", transportName->c_str(), state);
     this->iceState = state;
     if (this->listener_ != NULL)
       this->listener_->updateIceState(state, this);

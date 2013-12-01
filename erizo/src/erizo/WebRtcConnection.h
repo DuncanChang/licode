@@ -104,7 +104,7 @@ private:
 	std::queue<dataPacket> sendQueue_;
 	WebRtcConnectionStateListener* connStateListener_;
 	Transport *videoTransport_, *audioTransport_;
-	char *deliverMediaBuffer_;
+	char deliverMediaBuffer_[3000];
 
 	volatile bool sending_;
 	void sendLoop();
@@ -116,6 +116,8 @@ private:
 
 	int stunPort_, minPort_, maxPort_;
 	std::string stunServer_;
+
+	boost::condition_variable cond_;
 
 };
 

@@ -98,7 +98,7 @@ public:
 	/**
 	 * The transport name
 	 */
-	std::string *transportName;
+  boost::scoped_ptr<std::string> transportName;
 	/**
 	 * The state of the ice Connection
 	 */
@@ -106,7 +106,7 @@ public:
 	/**
 	 * The Obtained local candidates.
 	 */
-	std::vector<CandidateInfo>* localCandidates;
+  boost::shared_ptr<std::vector<CandidateInfo> > localCandidates;
 
 	void updateIceState(IceState state);
 	void updateComponentState(unsigned int compId, IceState state);
@@ -119,6 +119,7 @@ private:
 	GMainLoop* loop_;
 	GMainContext* context_;
 	boost::thread m_Thread_;
+	boost::mutex writeMutex_;
   	unsigned int iceComponents_;
   	std::map <unsigned int, IceState> comp_state_list;
 	std::string stunServer_;
